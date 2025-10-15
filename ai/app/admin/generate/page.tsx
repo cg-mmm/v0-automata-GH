@@ -331,7 +331,7 @@ const handlePublish = async () => {
   if (!generatedArticle) return;
 
   setPublishing(true);
-setError("");
+  setError("");
 
   try {
     const data = await fetchJson("/api/publish", {
@@ -339,7 +339,9 @@ setError("");
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ article: generatedArticle }),
     });
-`);
+
+    if (!data || !data.url) {
+      throw new Error("Bad JSON from server");
     }
 
     setPublishedUrl(data.url);
@@ -347,11 +349,12 @@ setError("");
       title: "Published successfully",
       description: "Your article is now live",
     });
-  } catch (err: any) {
-    setError(err?.message || "Publish failed");
+  } catch (err) {
+    const msg = (err && err.message) ? err.message : "Publish failed";
+    setError(msg);
     toast({
       title: "Publish failed",
-      description: err?.message || "Unknown error",
+      description: msg,
       variant: "destructive",
     });
   } finally {
