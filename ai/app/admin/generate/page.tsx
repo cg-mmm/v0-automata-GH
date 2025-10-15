@@ -1,3 +1,4 @@
+import { fetchJson } from "@/lib/safe-json";
 "use client"
 
 import type React from "react"
