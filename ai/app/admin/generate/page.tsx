@@ -1,6 +1,6 @@
-import { fetchJson } from "@/lib/safe-json";
 "use client"
 
+import { fetchJson } from "@/lib/safe-json";
 import type React from "react"
 
 import { useState, useEffect } from "react"
@@ -257,108 +257,71 @@ export default function GeneratePage() {
   }
 
   const handleGenerate = async () => {
-    if (!formData.title) {
-      toast({
-        title: "Title required",
-        description: "Please enter a title for your article",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setLoading(true)
-    setError("")
-    setPublishedUrl("")
-    setGeneratedArticle(null)
-    setValidationErrors([])
-
-    try {
-      let models = []
-      if (formData.modelsJson.trim()) {
-        try {
-          models = JSON.parse(formData.modelsJson)
-        } catch (err) {
-          throw new Error("Invalid JSON in models field. Please check your syntax.")
-        }
-      }
-
-      const data = await fetchJson("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: formData.title,
-          models: models.length > 0 ? models : undefined,
-          customInstructions: {
-            tldr: formData.tldr,
-            keyTakeaways: formData.keyTakeaways.split("\n").filter(Boolean),
-            quizInstructions: formData.quizInstructions,
-            calculatorInstructions: formData.calculatorInstructions,
-            pullQuote: formData.pullQuote,
-            pullQuoteAttribution: formData.pullQuoteAttribution,
-            dropdownTitle: formData.dropdownTitle,
-            dropdownBody: formData.dropdownBody,
-            reviewsInstructions: formData.reviewsInstructions,
-          },
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!data.article) {
-        throw new Error(data.error || "Failed to generate article")
-      }
-
-      const validatedArticle = parseArticle((data as any).article as any)
-      setGeneratedArticle(validatedArticle)
-      toast({
-        title: "Article generated",
-        description: "Your article has been generated successfully",
-      })
-    } catch (err: any) {
-      setError(err.message)
-      toast({
-        title: "Generation failed",
-        description: err.message,
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
+  if (!formData.title) {
+    toast({
+      title: "Title required",
+      description: "Please enter a title for your article",
+      variant: "destructive",
+    });
+    return;
   }
 
-  
-const handlePublish = async () => {
-  if (!generatedArticle) return;
-
-  setPublishing(true);
+  setLoading(true);
   setError("");
+  setPublishedUrl("");
+  setGeneratedArticle(null);
+  setValidationErrors([]);
 
   try {
-    const data = await fetchJson("/api/publish", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ article: generatedArticle }),
-    });
-
-    if (!data || !data.url) {
-      throw new Error("Bad JSON from server");
+    let models: any[] = [];
+    if (formData.modelsJson.trim()) {
+      try {
+        models = JSON.parse(formData.modelsJson);
+      } catch {
+        throw new Error("Invalid JSON in models field. Please check your syntax.");
+      }
     }
 
-    setPublishedUrl(data.url);
-    toast({
-      title: "Published successfully",
-      description: "Your article is now live",
+    const data = await fetchJson("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: formData.title,
+        models: models.length > 0 ? models : undefined,
+        customInstructions: {
+          tldr: formData.tldr,
+          keyTakeaways: formData.keyTakeaways.split("\n").filter(Boolean),
+          quizInstructions: formData.quizInstructions,
+          calculatorInstructions: formData.calculatorInstructions,
+          pullQuote: formData.pullQuote,
+          pullQuoteAttribution: formData.pullQuoteAttribution,
+          dropdownTitle: formData.dropdownTitle,
+          dropdownBody: formData.dropdownBody,
+          reviewsInstructions: formData.reviewsInstructions,
+        },
+      }),
     });
-  } catch (err) {
-    const msg = (err && err.message) ? err.message : "Publish failed";
+
+    if (!data || !data.article) {
+      throw new Error(data?.error || "Failed to generate article");
+    }
+
+    const validatedArticle = parseArticle(data.article as any);
+    setGeneratedArticle(validatedArticle);
+    toast({
+      title: "Article generated",
+      description: "Your article has been generated successfully",
+    });
+  } catch (err: any) {
+    const msg = err?.message || "Unknown error";
     setError(msg);
     toast({
-      title: "Publish failed",
+      title: "Generation failed",
       description: msg,
       variant: "destructive",
     });
   } finally {
-    setPublishing(false);
+    setLoading(false);
   }
 };
 
