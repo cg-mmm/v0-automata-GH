@@ -1,6 +1,7 @@
 "use client"
 
-import { fetchJson } from "@/lib/safe-json";
+import { fetchJson } from "@/lib/safe-json"
+
 import type React from "react"
 
 import { useState, useEffect } from "react"
@@ -28,8 +29,6 @@ import { parseArticle, type Article } from "@/lib/articleSchema"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { LiquidBlobs } from "@/components/visual/LiquidBlobs"
-
-
 
 function articleToContentDoc(a: any){
   if(!a) return null;
@@ -120,13 +119,6 @@ function articleToContentDoc(a: any){
     ctas: Array.isArray(a.ctas) ? a.ctas : [],
   };
 }
-
-
-
-
-
-
-
 
 const SAMPLE_DATA = {
   title: "2026 Midsize Sedan Comparison: Honda Accord vs Toyota Camry vs Mazda6",
@@ -257,75 +249,102 @@ export default function GeneratePage() {
   }
 
   const handleGenerate = async () => {
-  if (!formData.title) {
-    toast({
-      title: "Title required",
-      description: "Please enter a title for your article",
-      variant: "destructive",
-    });
-    return;
-  }
+    if (!formData.title) {
+      toast({
+        title: "Title required",
+        description: "Please enter a title for your article",
+        variant: "destructive",
+      })
+      return
+    }
 
-  setLoading(true);
-  setError("");
-  setPublishedUrl("");
-  setGeneratedArticle(null);
-  setValidationErrors([]);
+    setLoading(true)
+    setError("")
+    setPublishedUrl("")
+    setGeneratedArticle(null)
+    setValidationErrors([])
 
-  try {
-    let models: any[] = [];
-    if (formData.modelsJson.trim()) {
-      try {
-        models = JSON.parse(formData.modelsJson);
-      } catch {
-        throw new Error("Invalid JSON in models field. Please check your syntax.");
+    try {
+      let models = []
+      if (formData.modelsJson.trim()) {
+        try {
+          models = JSON.parse(formData.modelsJson)
+        } catch (err) {
+          throw new Error("Invalid JSON in models field. Please check your syntax.")
+        }
       }
+
+      const data: any = await fetchJson("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: formData.title,
+          models: models.length > 0 ? models : undefined,
+          customInstructions: {
+            tldr: formData.tldr,
+            keyTakeaways: formData.keyTakeaways.split("\n").filter(Boolean),
+            quizInstructions: formData.quizInstructions,
+            calculatorInstructions: formData.calculatorInstructions,
+            pullQuote: formData.pullQuote,
+            pullQuoteAttribution: formData.pullQuoteAttribution,
+            dropdownTitle: formData.dropdownTitle,
+            dropdownBody: formData.dropdownBody,
+            reviewsInstructions: formData.reviewsInstructions,
+          },
+        }),
+      })
+
+      if (!data?.article) throw new Error("Failed to generate article")
+
+      const validatedArticle = parseArticle((data as any).article as any)
+      setGeneratedArticle(validatedArticle)
+      toast({
+        title: "Article generated",
+        description: "Your article has been generated successfully",
+      })
+    } catch (err: any) {
+      setError(err.message)
+      toast({
+        title: "Generation failed",
+        description: err.message,
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
-
-    const data = await fetchJson("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: formData.title,
-        models: models.length > 0 ? models : undefined,
-        customInstructions: {
-          tldr: formData.tldr,
-          keyTakeaways: formData.keyTakeaways.split("\n").filter(Boolean),
-          quizInstructions: formData.quizInstructions,
-          calculatorInstructions: formData.calculatorInstructions,
-          pullQuote: formData.pullQuote,
-          pullQuoteAttribution: formData.pullQuoteAttribution,
-          dropdownTitle: formData.dropdownTitle,
-          dropdownBody: formData.dropdownBody,
-          reviewsInstructions: formData.reviewsInstructions,
-        },
-      }),
-    });
-
-    if (!data || !data.article) {
-      throw new Error(data?.error || "Failed to generate article");
-    }
-
-    const validatedArticle = parseArticle(data.article as any);
-    setGeneratedArticle(validatedArticle);
-    toast({
-      title: "Article generated",
-      description: "Your article has been generated successfully",
-    });
-  } catch (err: any) {
-    const msg = err?.message || "Unknown error";
-    setError(msg);
-    toast({
-      title: "Generation failed",
-      description: msg,
-      variant: "destructive",
-    });
-  } finally {
-    setLoading(false);
   }
-};
 
-const copyJSON = () => {
+  const handlePublish = async () => {
+    if (!generatedArticle) return
+
+    setPublishing(true)
+    setError("")
+
+    try {
+      const data: any = await fetchJson("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ article: generatedArticle }),
+      })
+
+      setPublishedUrl(data.url)
+      toast({
+        title: "Published successfully",
+        description: "Your article is now live",
+      })
+    } catch (err: any) {
+      setError(err?.message || "Publish failed")
+      toast({
+        title: "Publish failed",
+        description: err?.message || "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  const copyJSON = () => {
     if (!generatedArticle) return
     navigator.clipboard.writeText(JSON.stringify(generatedArticle, null, 2))
     setCopied(true)
