@@ -282,7 +282,7 @@ export default function GeneratePage() {
         }
       }
 
-      const response = await fetch("/api/generate", {
+      const data = await fetchJson("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -304,7 +304,7 @@ export default function GeneratePage() {
 
       const data = await response.json()
 
-      if (!response.ok || !data.article) {
+      if (!data.article) {
         throw new Error(data.error || "Failed to generate article")
       }
 
@@ -331,20 +331,17 @@ const handlePublish = async () => {
   if (!generatedArticle) return;
 
   setPublishing(true);
-  setError("");
+setError("");
 
   try {
-    const response = await fetch("/api/publish", {
+    const data = await fetchJson("/api/publish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ article: generatedArticle }),
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+`);
     }
 
-    const data = await response.json();
     setPublishedUrl(data.url);
     toast({
       title: "Published successfully",
