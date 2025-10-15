@@ -28,6 +28,105 @@ import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { LiquidBlobs } from "@/components/visual/LiquidBlobs"
 
+
+
+function articleToContentDoc(a: any){
+  if(!a) return null;
+
+  const escapeHtml = (t:string) =>
+    String(t||'').replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  const mdToHtml = (md:string) => {
+    const esc = escapeHtml(md);
+    return esc
+      .replace(/^###\s+(.+)$/gmi,'<h3>$1</h3>')
+      .replace(/^##\s+(.+)$/gmi,'<h2>$1</h2>')
+      .replace(/^#\s+(.+)$/gmi,'<h1>$1</h1>')
+      .replace(/^\-\s+(.+)$/gmi,'<li>$1</li>')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g,'<em>$1</em>')
+      .replace(/\`([^\`]+)\`/g,'<code>$1</code>')
+      .replace(/(?:^|\n)((?:<li>.*?<\/li>\n?)+)/g, (m) => '<ul>'+m.trim()+'</ul>\n')
+      .replace(/\n\n+/g,'</p><p>')
+      .replace(/\n/g,'<br/>');
+  };
+
+  const brand = (a?.hero as any)?.brand || {};
+  const sections:any[] = [];
+
+  for (const b of (Array.isArray(a?.blocks) ? a.blocks : [])) {
+    if (!b || typeof b !== 'object') continue;
+
+    if (b.type === 'intro' && typeof (b as any).html === 'string') {
+      sections.push({ type:'rich', html: String((b as any).html) });
+      continue;
+    }
+    if (b.type === 'markdown') {
+      const src = (b as any).md ?? (b as any).markdown ?? (b as any).html ?? '';
+      sections.push({ type:'rich', html: mdToHtml(String(src)) });
+      continue;
+    }
+    if (b.type === 'comparisonTable') {
+      const cols = (b as any).columns || [];
+      const rows = (b as any).rows || [];
+      const thead = '<tr>' + cols.map((c:any)=>'<th>'+escapeHtml(String(c))+'</th>').join('') + '</tr>';
+      const trs = rows.map((r:any)=>{
+        const values = typeof r?.values === 'string'
+          ? r.values.split('|').map((x:any)=>x.trim())
+          : ([] as any[]);
+        return '<tr><td>'+escapeHtml(String(r?.label||''))+'</td>'+values.map(v=>'<td>'+escapeHtml(String(v))+'</td>').join('')+'</tr>';
+      }).join('');
+      sections.push({ type:'rich', html: '<table><thead>'+thead+'</thead><tbody>'+trs+'</tbody></table>' });
+      continue;
+    }
+    if (b.type === 'specGrid') {
+      const groups = (b as any).groups || [];
+      const html = groups.map((g:any)=>{
+        const items = (g?.items||[]).map((it:any)=>'<div class="flex justify-between"><span>'+escapeHtml(String(it?.label||''))+'</span><span>'+escapeHtml(String(it?.value||''))+'</span></div>').join('');
+        return '<div class="mb-4"><h4>'+escapeHtml(String(g?.title||'Specifications'))+'</h4>'+items+'</div>';
+      }).join('');
+      sections.push({ type:'rich', html });
+      continue;
+    }
+    if (b.type === 'prosCons') {
+      const pros = (Array.isArray((b as any).pros)?(b as any).pros:[]).map((x:any)=>'<li>'+escapeHtml(String(x))+'</li>').join('');
+      const cons = (Array.isArray((b as any).cons)?(b as any).cons:[]).map((x:any)=>'<li>'+escapeHtml(String(x))+'</li>').join('');
+      sections.push({ type:'rich', html: '<div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div><h4>Pros</h4><ul>'+pros+'</ul></div><div><h4>Cons</h4><ul>'+cons+'</ul></div></div>' });
+      continue;
+    }
+    if (b.type === 'ctaBanner') {
+      const label = escapeHtml(String((b as any).label||'Learn more'));
+      const href  = escapeHtml(String((b as any).href || '#'));
+      sections.push({ type:'rich', html: '<div class="p-4 rounded border"><a class="btn" href="'+href+'">'+label+'</a></div>' });
+      continue;
+    }
+    if (b.type === 'faq') {
+      const heading = escapeHtml(String((b as any).heading || 'FAQ'));
+      const items = (Array.isArray((b as any).items)?(b as any).items:[]).map((it:any)=>'<dt>'+escapeHtml(String(it?.q||''))+'</dt><dd>'+escapeHtml(String(it?.a||''))+'</dd>').join('');
+      sections.push({ type:'rich', html: '<div class="mt-6"><h3>'+heading+'</h3><dl class="mt-2">'+items+'</dl></div>' });
+      continue;
+    }
+  }
+
+  return {
+    meta: {
+      title: a.title,
+      subtitle: a.description,
+      brand: { primary: brand.primary || "#3b82f6", secondary: brand.secondary || "#10b981" },
+      hero: { tagline: a?.hero?.subheadline || a?.hero?.headline || "" },
+    },
+    sections,
+    ctas: Array.isArray(a.ctas) ? a.ctas : [],
+  };
+}
+
+
+
+
+
+
+
+
 const SAMPLE_DATA = {
   title: "2026 Midsize Sedan Comparison: Honda Accord vs Toyota Camry vs Mazda6",
   tldr: "The 2026 Honda Accord, Toyota Camry, and Mazda6 represent the best midsize sedans on the market. The Accord excels in fuel economy and cargo space, the Camry offers legendary reliability and available AWD, while the Mazda6 provides upscale styling at the lowest price.",
@@ -208,7 +307,7 @@ export default function GeneratePage() {
         throw new Error(data.error || "Failed to generate article")
       }
 
-      const validatedArticle = parseArticle(data.article)
+      const validatedArticle = parseArticle((data as any).article as any)
       setGeneratedArticle(validatedArticle)
       toast({
         title: "Article generated",
@@ -226,43 +325,43 @@ export default function GeneratePage() {
     }
   }
 
-  const handlePublish = async () => {
-    if (!generatedArticle) return
+  
+const handlePublish = async () => {
+  if (!generatedArticle) return;
 
-    setPublishing(true)
-    setError("")
+  setPublishing(true);
+  setError("");
 
-    try {
-      const response = await fetch("/api/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ article: generatedArticle }),
-      })
+  try {
+    const response = await fetch("/api/publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ article: generatedArticle }),
+    });
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || `HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-      setPublishedUrl(data.url)
-      toast({
-        title: "Published successfully",
-        description: "Your article is now live",
-      })
-    } catch (err: any) {
-      setError(err.message)
-      toast({
-        title: "Publish failed",
-        description: err.message,
-        variant: "destructive",
-      })
-    } finally {
-      setPublishing(false)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
-  }
 
-  const copyJSON = () => {
+    const data = await response.json();
+    setPublishedUrl(data.url);
+    toast({
+      title: "Published successfully",
+      description: "Your article is now live",
+    });
+  } catch (err: any) {
+    setError(err?.message || "Publish failed");
+    toast({
+      title: "Publish failed",
+      description: err?.message || "Unknown error",
+      variant: "destructive",
+    });
+  } finally {
+    setPublishing(false);
+  }
+};
+
+const copyJSON = () => {
     if (!generatedArticle) return
     navigator.clipboard.writeText(JSON.stringify(generatedArticle, null, 2))
     setCopied(true)
@@ -538,7 +637,7 @@ export default function GeneratePage() {
                     <span className="text-sm text-slate-500 ml-auto">{generatedArticle.slug}</span>
                   </div>
                   <div className="bg-slate-950 rounded-xl overflow-hidden">
-                    <ArticleView article={generatedArticle} />
+                    <ArticleView doc={articleToContentDoc(generatedArticle)} />
                   </div>
                 </div>
               ) : (
